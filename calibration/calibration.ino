@@ -17,6 +17,7 @@ uint8_t clockPin = 7;
 void setup()
 {
   Serial.begin(115200);
+  Serial.println(__FILE__);
   Serial.print("HX711_LIB_VERSION: ");
   Serial.println(HX711_LIB_VERSION);
   Serial.println();
@@ -42,13 +43,14 @@ void calibrate()
   while (Serial.available() == 0);
 
   Serial.println("Determine zero weight offset");
-  // average 20 measurements.
+  //  average 20 measurements.
   myScale.tare(20);
   int32_t offset = myScale.get_offset();
 
   Serial.print("OFFSET: ");
   Serial.println(offset);
   Serial.println();
+
 
   Serial.println("place a weight on the loadcell");
   //  flush Serial input

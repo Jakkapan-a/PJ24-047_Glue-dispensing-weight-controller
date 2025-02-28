@@ -26,7 +26,8 @@ void setup()
     // scale.set_scale(127.15);
     // load cell factor 5 KG
     // scale.set_scale(420.52);
-    scale.set_scale(375.149810);
+    // scale.set_scale(375.149810);
+    scale.set_scale(406.472167);
     scale.tare();
 
     Serial.print("UNITS: ");
@@ -60,6 +61,7 @@ void loop()
             // ค่าเสถียรแล้ว แสดงผล
             Serial.print("UNITS: ");
             Serial.print(w1);
+            Serial.print(" g");
 
             if (w1 == 0)
             {
