@@ -1,3 +1,39 @@
+/*
+Last update: 2025-03-01
+Author: Jakkapan A.
+Github: https://github.com/Jakkapan-a/PJ24-047_Glue-dispensing-weight-controller
+Hardware: Arduino Mega 2560
+Sensor: HX711
+LCD: I2C 16x2
+Relay: 2 Channel
+Buzzer: Active
+Button: 4 Button
+
+- 4 Button
+  - ESC
+  - UP
+  - DOWN
+  - OK
+
+- 2 Input
+  - SENSOR
+  - M/C RUN
+
+- 3 Output
+  - RELAY 1
+  - RELAY 2
+  - BUZZER
+
+- 3 LED
+  - RED
+  - GREEN
+  - BLUE
+
+- 1 HX711
+  - DATA
+  - CLOCK
+*/ 
+
 #include <TcBUTTON.h>
 #include <TcPINOUT.h>
 #include "HX711.h"
@@ -5,6 +41,7 @@
 #include <EEPROM.h>
 #include <Wire.h>
 
+#define DEBUG 0
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 HX711 scale;
 const uint8_t dataPin = 6;
@@ -27,26 +64,64 @@ TcBUTTON btnUp(BUTTON_PIN_UP, btnUpOnEventChanged);
 TcBUTTON btnDown(BUTTON_PIN_DOWN, btnDownOnEventChanged);
 TcBUTTON btnOk(BUTTON_PIN_OK, btnOkOnEventChanged);
 
-#define INPUT_PIN1 8 // SENSOR 
-#define INPUT_PIN2 9 
+#define INPUT_PIN1 8  // SENSOR
+#define INPUT_PIN2 9
 #define INPUT_PIN3 10
 #define INPUT_PIN4 11
 
 void inputPin1OnEventChanged(bool state);
 void inputPin2OnEventChanged(bool state);
-// void inputPin3OnEventChanged(bool state);
-// void inputPin4OnEventChanged(bool state);
 
-TcPINOUT inputPin1(INPUT_PIN1, inputPin1OnEventChanged);
-TcPINOUT inputPin2(INPUT_PIN2, inputPin2OnEventChanged);
-// TcPINOUT inputPin3(INPUT_PIN3, inputPin3OnEventChanged);
-// TcPINOUT inputPin4(INPUT_PIN4, inputPin4OnEventChanged);
+TcBUTTON inputPin1(INPUT_PIN1, inputPin1OnEventChanged);
+TcBUTTON inputPin2(INPUT_PIN2, inputPin2OnEventChanged);
 
 // -------------- OUTPUT --------------
-#define BUZZER_PIN 12
+
+#define BUZZER_PIN 10
 TcPINOUT buzzer(BUZZER_PIN);
 
+#define RELAY_AIR1 4
+#define RELAY_AIR2 5
 
+TcPINOUT relayAir1(RELAY_AIR1);
+TcPINOUT relayAir2(RELAY_AIR2);
+
+
+#define LED_RED_PIN 13
+#define LED_GREEN_PIN 12
+#define LED_BLUE_PIN 11
+
+enum LED_COLOR {
+  RED,
+  GREEN,
+  BLUE,
+  OFF
+};
+
+void setLedColor(LED_COLOR color) {
+  switch (color) {
+    case RED:
+      digitalWrite(LED_RED_PIN, HIGH);
+      digitalWrite(LED_GREEN_PIN, LOW);
+      digitalWrite(LED_BLUE_PIN, LOW);
+      break;
+    case GREEN:
+      digitalWrite(LED_RED_PIN, LOW);
+      digitalWrite(LED_GREEN_PIN, HIGH);
+      digitalWrite(LED_BLUE_PIN, LOW);
+      break;
+    case BLUE:
+      digitalWrite(LED_RED_PIN, LOW);
+      digitalWrite(LED_GREEN_PIN, LOW);
+      digitalWrite(LED_BLUE_PIN, HIGH);
+      break;
+    default:
+      digitalWrite(LED_RED_PIN, LOW);
+      digitalWrite(LED_GREEN_PIN, LOW);
+      digitalWrite(LED_BLUE_PIN, LOW);
+      break;
+  }
+}
 
 // -------------- HX711 --------------
 float w1 = 0, w2 = 0, previous = 0;
@@ -55,12 +130,12 @@ unsigned long lastReadTime = 0;
 bool waitingForStability = false;  //
 
 // -------------- EEPROM --------------
-template <typename T>
+template<typename T>
 void SaveToEEPROM(int address, T value) {
   EEPROM.put(address, value);
 }
 
-template <typename T>
+template<typename T>
 T ReadFromEEPROM(int address) {
   T value;
   EEPROM.get(address, value);
@@ -68,51 +143,65 @@ T ReadFromEEPROM(int address) {
 }
 int menuIndex = 0;
 int subMenuIndex = 0;
-int values[5] = {0, 0, 0, 0, 0}; // min1, max1, min2, max2, cal weight
-int valuesTemp[5] = {0, 0, 0, 0, 0}; // min1, max1, min2, max2, cal weight
+int values[5] = { 0, 0, 0, 0, 0 };      // min1, max1, min2, max2, cal weight
+int valuesTemp[5] = { 0, 0, 0, 0, 0 };  // min1, max1, min2, max2, cal weight
 // ---------- SETUP ------------
 void setup() {
-  Serial.begin(115200);
-  Serial.print("HX711_LIB_VERSION: ");
-  Serial.println(HX711_LIB_VERSION);
-  Serial.println();
+  Serial.begin(9600);
   scale.begin(dataPin, clockPin);
   float scale_factor = ReadFromEEPROM<float>(50);
   Serial.print("Scale factor: ");
   Serial.println(scale_factor);
-  
-  if(scale_factor != 0){
+  if (scale_factor != 0) {
     scale.set_scale(scale_factor);
-  }else{
+  } else {
     scale.set_scale(406.472167);
   }
-
   scale.tare();
-
   lcd.begin();
   lcd.backlight();
   lcd.setCursor(0, 0);
-  String dot = ".";
-  updateLCD("Loading", "");
-  for(int i = 0; i < 10; i++) {
-    updateLCD("Loading", dot.c_str());
-    dot += ".";
-    delay(100);
-  }
-
   // -- Read EEPROM to values
-  for(int i = 0; i < 5; i++){
+  for (int i = 0; i < 5; i++) {
     values[i] = ReadFromEEPROM<int>(i * sizeof(int));
   }
-  // ---------------- 
+  // ----------------
   delay(100);
   String _w = String(w1, 1) + "g";
-  updateLCD("Weight", _w.c_str());
-
+  _w = "Weight: " + _w;
+  updateLCD("AUTO",_w.c_str());
+  // -- LED --
+  pinMode(LED_RED_PIN, OUTPUT);
+  pinMode(LED_GREEN_PIN, OUTPUT);
+  pinMode(LED_BLUE_PIN, OUTPUT);
+#if 0  // Test LED
+  setLedColor(RED);
+  delay(1000);
+  setLedColor(GREEN);
+  delay(1000);
+  setLedColor(BLUE);
+  delay(1000);
+  setLedColor(OFF);
+#endif
+  String dot = ".";
+  updateLCD("Loading", "");
+  for (int i = 0; i < 10; i++) {
+    updateLCD("Loading", dot.c_str());
+    dot += ".";
+    delay(50);
+  }
+  delay(300);
   // -- BUTTONS --
   btnUp.setOnHold(btnUpHoldCallback, 1000);
   btnDown.setOnHold(btnDownHoldCallback, 1000);
-  buzzer.toggleFor(2, 100);
+  inputPin1.isInvert = true;
+  inputPin2.isInvert = true;
+
+  // -- RELAY --
+  relayAir1.off();
+  relayAir2.off();
+  // -- BUZZER --
+  buzzer.toggleFor(2);
 }
 int menu = 0;
 bool btnEscPressed = false;
@@ -121,21 +210,26 @@ bool btnDownPressed = false;
 bool btnOkPressed = false;
 bool btnUpHold = false;
 bool btnDownHold = false;
+bool input1Sensor = false;
+bool input1SensorState = false;
+bool input2McRun = false;
+bool input2McRunState = false;
+bool resultNG = true;
 void loop() {
   btnEsc.update();
-  btnUp.update();
-  btnDown.update();
-  btnOk.update();
+  inputPin1.update();
+  inputPin2.update();
   buzzer.update();
-  if(menu == 0){
+  if (menu == 0) {
     updateWeight();
-  }else{
-   updateMenu();
+  } else {
+    btnUp.update();
+    btnDown.update();
+    btnOk.update();
+    updateMenu();
   }
 }
-
-
-const char *menuItems[] = {"Zero", "Min1", "Max1", "Min2", "Max2", "Cal"};
+const char *menuItems[] = { "Zero", "Min1", "NAN", "Min2", "Max2", "Cal" };
 void updateMenu() {
   String _men1 = menuItems[menuIndex];
   _men1 = ">" + _men1;
@@ -147,30 +241,27 @@ void updateMenu() {
     menuIndex = (menuIndex > 0) ? menuIndex - 1 : 5;
     btnUpPressed = false;
   }
-  if (btnDownPressed)
-  {
+  if (btnDownPressed) {
     menuIndex = (menuIndex < 5) ? menuIndex + 1 : 0;
     btnDownPressed = false;
   }
-  if (btnOkPressed) 
-  {
-    if(menuIndex == 0){
+  if (btnOkPressed) {
+    if (menuIndex == 0) {
       scale.tare();
       updateLCD("Set zero", ".");
       String _dot = ".";
-      for(int i = 0; i < 5; i++){
+      for (int i = 0; i < 5; i++) {
         updateLCD("Set zero", _dot.c_str());
         _dot += ".";
         delay(50);
       }
       delay(100);
-    }else if(menuIndex >= 1 && menuIndex <=4){
-      // ------------ SET MIN, MAX
+    } else if (menuIndex >= 1 && menuIndex <= 4) {
       // copy values to temp
-      for(int i = 0; i < 5; i++){
+      for (int i = 0; i < 5; i++) {
         valuesTemp[i] = values[i];
-      }      
-      subMenuIndex = menuIndex - 1; //
+      }
+      subMenuIndex = menuIndex - 1;  //
       btnOkPressed = false;
       while (true) {
         btnEsc.update();
@@ -178,22 +269,20 @@ void updateMenu() {
         btnDown.update();
         btnOk.update();
         String _menu = menuItems[menuIndex];
-        _menu ="Set "+_menu+ " :";
+        _menu = "Set " + _menu + " :";
         updateLCD(_menu.c_str(), String(valuesTemp[subMenuIndex]).c_str());
-        if (btnUpPressed || btnUpHold) 
-        {
+        if (btnUpPressed || btnUpHold) {
           valuesTemp[subMenuIndex]++;
           btnUpPressed = false;
-          if(btnUpHold){
-            delay(100);
+          if (btnUpHold) {
+            delay(50);
           }
         }
-        if (btnDownPressed || btnDownHold)
-        {
+        if (btnDownPressed || btnDownHold) {
           valuesTemp[subMenuIndex]--;
           btnDownPressed = false;
-          if(btnDownHold){
-            delay(100);
+          if (btnDownHold) {
+            delay(50);
           }
         }
         if (btnOkPressed) {
@@ -202,14 +291,13 @@ void updateMenu() {
           btnOkPressed = false;
           updateLCD("Saveing", ".");
           String _dot = ".";
-          for(int i = 0; i < 5; i++){
+          for (int i = 0; i < 5; i++) {
             updateLCD("Saveing", _dot.c_str());
             _dot += ".";
             delay(100);
           }
-          
           // update values
-          for(int i = 0; i < 5; i++){
+          for (int i = 0; i < 5; i++) {
             values[i] = valuesTemp[i];
           }
 
@@ -221,11 +309,10 @@ void updateMenu() {
           break;
         }
       }
-    }else if(menuIndex == 5){
+    } else if (menuIndex == 5) {
       // ------------ CALIBRATE ------------
       calibrate();
     }
-  
     btnOkPressed = false;
   }
   if (btnEscPressed) {
@@ -234,16 +321,14 @@ void updateMenu() {
   }
 }
 
-
-void calibrate(){
+void calibrate() {
   updateLCD("Please", "Remove all");
   btnOkPressed = false;
-  while (true)
-  {
+  while (true) {
     btnEsc.update();
     btnOk.update();
 
-    if(btnOkPressed){
+    if (btnOkPressed) {
       scale.tare(20);
       btnOkPressed = false;
       uint32_t wegiht = 0;
@@ -252,45 +337,42 @@ void calibrate(){
       delay(900);
       updateLCD("Put weight", "and press OK");
       delay(1000);
-      while (true)
-      {
+      while (true) {
         btnEsc.update();
         btnUp.update();
         btnDown.update();
         btnOk.update();
 
-        if(btnUpPressed || btnUpHold)
-        {
+        if (btnUpPressed || btnUpHold) {
           wegiht++;
-          if(wegiht > 1000){
+          if (wegiht > 1000) {
             wegiht = 1000;
           }
           btnUpPressed = false;
-          if(btnUpHold){
+          if (btnUpHold) {
             delay(100);
           }
         }
-        if(btnDownPressed || btnDownHold)
-        {
+        if (btnDownPressed || btnDownHold) {
           wegiht--;
-          if(wegiht < 0){
+          if (wegiht < 0) {
             wegiht = 0;
           }
           btnDownPressed = false;
-          if(btnDownHold){
+          if (btnDownHold) {
             delay(100);
           }
         }
 
-        updateLCD("Put weight", String(wegiht).c_str());
-        if(btnOkPressed){
-          updateLCD("Are you sure", "Yes: OK, No: ESC");
+        String _w = String(wegiht) + "g";
+        updateLCD("Put weight", _w.c_str());
+        if (btnOkPressed) {
+          updateLCD("Are you sure", "No: ESC, Yes: OK");
           btnOkPressed = false;
-          while (true)
-          {
+          while (true) {
             btnEsc.update();
             btnOk.update();
-            if(btnOkPressed){
+            if (btnOkPressed) {
               updateLCD("Calibrate", "...");
               scale.calibrate_scale(wegiht, 20);
               updateLCD("Calibrate", "Done");
@@ -300,38 +382,121 @@ void calibrate(){
               btnOkPressed = false;
               return;
             }
-            if(btnEscPressed){
+            if (btnEscPressed) {
               btnEscPressed = false;
               return;
             }
           }
           break;
         }
-
-        if(btnEscPressed){
+        if (btnEscPressed) {
           btnEscPressed = false;
           break;
         }
       }
       break;
     }
+    if (btnEscPressed) {
+      btnEscPressed = false;
+      return;
+    }
   }
 }
+bool testing, testStamp = false;
+float weightStamp = 0;
 
+void updateWeightI(){
+  float newWeight = scale.get_units();
+    if (abs(newWeight - w1) > 0.9) {
+      w1 = newWeight;  // Update weight
+      if (w1 > -1 && w1 < 0.9) {
+        w1 = 0;
+      }
+    }
+}
 void updateWeight() {
   unsigned long currentMillis = millis();
   if (currentMillis - lastReadTime >= interval) {
     lastReadTime = currentMillis;
-    float newWeight = scale.get_units(); 
-    if (abs(newWeight - w1) > 0.9) 
-    {
-      w1 = newWeight; 
-      if(w1 > -1 && w1 < 0.9)
-      {
-        w1 = 0;
+    updateWeightI();
+    String _w = String(w1, 1) + "g";
+    // PROCESS TEST HERE
+    if (input1SensorState) {
+      String line1 = "";
+      String line2 = "";
+      line1 = "Running";
+      line2 = "W:" + _w;
+      if (input1Sensor) {
+        input1Sensor = false;
+        testStamp = false;
+        resultNG = false;
+
+        buzzer.toggleFor(1);
+        setLedColor(BLUE);
       }
-      String _w = String(w1, 1) + "g";
-      updateLCD("Weight", _w.c_str());
+
+      if (input2McRunState) {
+        testStamp = true;
+        if (input2McRun) {
+          input2McRun = false;
+          scale.tare();
+          testing = true;
+          updateWeightI();
+        }
+        line1 = "Testing";
+        if (w1 > values[0]) {
+          line2 = "W:" + _w + " >" + String(values[0]) + " OK";
+          relayAir1.on();
+          relayAir2.on();
+        }else{
+          line2 = "W:" + _w + " >" + String(values[0]) + " ...";
+          relayAir1.off();
+          relayAir2.off();
+        }
+        
+      } else {
+        if (testStamp) {
+          line1 = "Validate";
+          if(resultNG){
+            line1 += " NG";
+          }else{
+            line1 += " OK";
+          }
+          _w = String(weightStamp, 1) + "g";
+          line2 = "W:" + _w + " >" + String(values[2]) + "|" + String(values[3]) + "<";
+          if(testing){
+            testing = false;
+            if (w1 > values[2] && w1 < values[3]) {
+              buzzer.toggleFor(2);
+              line1 += " OK";
+               setLedColor(GREEN);
+            } else {
+              setLedColor(RED);
+              line1 += " NG";
+              resultNG = true;
+            }
+
+            weightStamp = w1;
+          }          
+        }
+      }
+      updateLCD(line1.c_str(), line2.c_str());
+    } else {
+      if (input1Sensor) {
+        input1Sensor = false;
+        buzzer.stopToggle();
+        buzzer.off();
+        scale.tare();
+        setLedColor(OFF);
+      }
+
+      _w = "Weight: " + _w;
+      updateLCD("AUTO", _w.c_str());
+    }
+    if(resultNG)
+    {
+      setLedColor(RED);
+      buzzer.toggleFor(15);
     }
   } else if (currentMillis < lastReadTime) {
     lastReadTime = currentMillis;  // Overflow
@@ -341,15 +506,15 @@ void updateWeight() {
 void btnEscOnEventChanged(bool state) {
   if (state) {
     Serial.println("ESC");
-    if(menu == 0){
+    if (menu == 0) {
       menu = 1;
       menuIndex = 0;
       subMenuIndex = 0;
 
-    }else if(menu == 1 && menuIndex == 0)
-    {
+    } else if (menu == 1 && menuIndex == 0) {
       menu = 0;
-      updateLCD("Weight", String(w1, 1).c_str());
+      String _w = String(w1, 1) + "g";
+      updateLCD("AUTO", _w.c_str());
     }
     btnEscPressed = true;
   }
@@ -390,32 +555,30 @@ void btnOkOnEventChanged(bool state) {
   }
 }
 
-
-// SENSOR
+// SENSOR 
 void inputPin1OnEventChanged(bool state) {
+  input1SensorState = state;
+  input1Sensor = true;
+
+  resultNG = false;
   if (state) {
     Serial.println("INPUT_PIN1");
+  } else {
+    // END TEST
+    relayAir1.off();
+    relayAir2.off();
+    resultNG = false;
   }
 }
 
 // M/C RUN
 void inputPin2OnEventChanged(bool state) {
+  input2McRunState = state;
   if (state) {
     Serial.println("INPUT_PIN2");
-  }
-}
-
-// M/C AIR
-void inputPin3OnEventChanged(bool state) {
-  if (state) {
-    Serial.println("INPUT_PIN3");
-  }
-}
-
-// Not used
-void inputPin4OnEventChanged(bool state) {
-  if (state) {
-    Serial.println("INPUT_PIN4");
+    input2McRun = true;
+  } else {
+    
   }
 }
 
