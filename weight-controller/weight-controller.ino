@@ -275,14 +275,14 @@ void updateMenu() {
           valuesTemp[subMenuIndex]++;
           btnUpPressed = false;
           if (btnUpHold) {
-            delay(50);
+            delay(1);
           }
         }
         if (btnDownPressed || btnDownHold) {
           valuesTemp[subMenuIndex]--;
           btnDownPressed = false;
           if (btnDownHold) {
-            delay(50);
+            delay(1);
           }
         }
         if (btnOkPressed) {
@@ -350,7 +350,7 @@ void calibrate() {
           }
           btnUpPressed = false;
           if (btnUpHold) {
-            delay(100);
+            delay(1);
           }
         }
         if (btnDownPressed || btnDownHold) {
@@ -360,7 +360,7 @@ void calibrate() {
           }
           btnDownPressed = false;
           if (btnDownHold) {
-            delay(100);
+            delay(1);
           }
         }
 
