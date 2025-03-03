@@ -407,9 +407,9 @@ float weightStamp = 0;
 
 void updateWeightI(){
   float newWeight = scale.get_units();
-    if (abs(newWeight - w1) > 0.9) {
-      w1 = newWeight;  // Update weight
-      if (w1 > -1 && w1 < 0.9) {
+    if (abs(newWeight - w1) > 0.4) {
+      w1 = round(newWeight);  // Update weight if it changes more than 0.3g
+      if (w1 > -1 && w1 < 0.4) {
         w1 = 0;
       }
     }
