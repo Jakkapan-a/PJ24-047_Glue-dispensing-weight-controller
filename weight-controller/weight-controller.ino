@@ -196,11 +196,12 @@ void setup() {
   btnDown.setOnHold(btnDownHoldCallback, 1000);
   inputPin1.isInvert = true;
   inputPin2.isInvert = true;
-
-  // -- RELAY --
+  // set debounce delay to 1000 milliseconds (1 second)
+  inputPin1.setDebounceDelay(1000);
+  // -- RELAY --  //
   relayAir1.off();
   relayAir2.off();
-  // -- BUZZER --
+  // -- BUZZER -- //
   buzzer.toggleFor(2);
 }
 int menu = 0;
@@ -214,12 +215,23 @@ bool input1Sensor = false;
 bool input1SensorState = false;
 bool input2McRun = false;
 bool input2McRunState = false;
-bool resultNG = true;
+bool resultNG = false;
+int countDownStart = 0;
+const int _countDownStart = 3;
 void loop() {
   btnEsc.update();
   inputPin1.update();
   inputPin2.update();
   buzzer.update();
+  // relayAir1.update();
+  relayAir2.update();
+  if(countDownStart > 0)
+  {
+    //
+    updateDispalyCountDown();
+    return;
+  }
+  
   if (menu == 0) {
     updateWeight();
   } else {
@@ -294,14 +306,14 @@ void updateMenu() {
           for (int i = 0; i < 5; i++) {
             updateLCD("Saveing", _dot.c_str());
             _dot += ".";
-            delay(100);
+            delay(50);
           }
           // update values
           for (int i = 0; i < 5; i++) {
             values[i] = valuesTemp[i];
           }
 
-          delay(1000);
+          delay(100);
           break;
         }
         if (btnEscPressed) {
@@ -414,6 +426,35 @@ void updateWeightI(){
       }
     }
 }
+
+void updateDispalyCountDown(){
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastReadTime >= 700)
+  {
+    lastReadTime = currentMillis;
+    String line1 = "START IN";
+    String line2 = String(countDownStart);
+    updateLCD(line1.c_str(), line2.c_str());
+
+    countDownStart--;
+    if(countDownStart == 1)
+    { 
+      scale.tare();
+      updateWeightI();
+    }
+    if(countDownStart == 0)
+    {
+      countDownStart = 0;
+      // Zero weight offset
+      relayAir2.onFor(500);
+      delay(100);
+    }
+
+  } else if (currentMillis < lastReadTime) {
+    lastReadTime = currentMillis;  // Overflow
+  }
+}
+bool isRalayIsOn = false;
 void updateWeight() {
   unsigned long currentMillis = millis();
   if (currentMillis - lastReadTime >= interval) {
@@ -439,19 +480,25 @@ void updateWeight() {
         testStamp = true;
         if (input2McRun) {
           input2McRun = false;
+          isRalayIsOn = true;
           scale.tare();
           testing = true;
           updateWeightI();
         }
         line1 = "Testing";
-        if (w1 > values[0]) {
+        if (w1 > values[0] && isRalayIsOn) {
           line2 = "W:" + _w + " >" + String(values[0]) + " OK";
           relayAir1.on();
-          relayAir2.on();
-        }else{
+          // relayAir2.on();
+          isRalayIsOn = false;
+        }else if(isRalayIsOn)
+        {
           line2 = "W:" + _w + " >" + String(values[0]) + " ...";
           relayAir1.off();
-          relayAir2.off();
+          // relayAir2.off();
+        }else
+        {
+          line2 = "W:" + _w + " >" + String(values[0]) + " ---";
         }
         
       } else {
@@ -466,7 +513,7 @@ void updateWeight() {
           line2 = "W:" + _w + " >" + String(values[2]) + "|" + String(values[3]) + "<";
           if(testing){
             testing = false;
-            if (w1 > values[2] && w1 < values[3]) {
+            if (w1 >= values[2] && w1 <= values[3]) {
               buzzer.toggleFor(2);
               line1 += " OK";
                setLedColor(GREEN);
@@ -562,6 +609,8 @@ void inputPin1OnEventChanged(bool state) {
 
   resultNG = false;
   if (state) {
+    countDownStart = _countDownStart;
+    lastReadTime = 0;
     Serial.println("INPUT_PIN1");
   } else {
     // END TEST
