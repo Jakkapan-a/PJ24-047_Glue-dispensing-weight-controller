@@ -417,12 +417,31 @@ void calibrate() {
 bool testing, testStamp = false;
 float weightStamp = 0;
 
+#define NUM_SAMPLES 4  // Number of samples for moving average
+float weightBuffer[NUM_SAMPLES] = {0}; // Buffer for moving average
+int bufferIndex = 0;
+
+float getFilteredWeight() {
+  float sum = 0.0;
+  for (int i = 0; i < NUM_SAMPLES; i++) {
+    sum += weightBuffer[i];
+  }
+  return sum / NUM_SAMPLES;  // คำนวณค่าเฉลี่ยของค่าที่อ่านได้
+}
+
 void updateWeightI(){
   float newWeight = scale.get_units();
-    if (abs(newWeight - w1) > 0.4) {
-      w1 = round(newWeight);  // Update weight if it changes more than 0.3g
-      if (w1 > -1 && w1 < 0.4) {
-        w1 = 0;
+
+  weightBuffer[bufferIndex] = newWeight;
+  bufferIndex = (bufferIndex + 1) % NUM_SAMPLES;  
+  float filteredWeight = getFilteredWeight();
+
+
+    if (abs(filteredWeight - w1) > 0.3) 
+    {
+      w1 = round(filteredWeight * 10) / 10.0;  // Fix to 1 decimal place
+      if (w1 > -1 && w1 < 0.6) {
+        w1 = 0.0;
       }
     }
 }
