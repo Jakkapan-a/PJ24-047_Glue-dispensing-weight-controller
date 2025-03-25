@@ -354,13 +354,12 @@ void calibrate() {
         btnUp.update();
         btnDown.update();
         btnOk.update();
-
         if (btnUpPressed || btnUpHold) {
           wegiht++;
           if (wegiht > 1000) {
             wegiht = 1000;
           }
-          btnUpPressed = false;
+          btnUpPressed = false;        
           if (btnUpHold) {
             delay(1);
           }
@@ -429,20 +428,34 @@ float getFilteredWeight() {
   return sum / NUM_SAMPLES;  // คำนวณค่าเฉลี่ยของค่าที่อ่านได้
 }
 
+float customRound(float value) {
+  int intPart = (int)value;
+  float decimalPart = value - intPart;
+
+  if (decimalPart <= 0.2) {
+    return intPart * 1.0;
+  } else if (decimalPart <= 0.8) {
+    return intPart + 0.5;
+  } else {
+    return intPart + 1.0;
+  }
+}
+
+
 void updateWeightI(){
   float newWeight = scale.get_units();
-
   weightBuffer[bufferIndex] = newWeight;
   bufferIndex = (bufferIndex + 1) % NUM_SAMPLES;  
   float filteredWeight = getFilteredWeight();
 
-
     if (abs(filteredWeight - w1) > 0.3) 
     {
       w1 = round(filteredWeight * 10) / 10.0;  // Fix to 1 decimal place
-      if (w1 > -1 && w1 < 0.6) {
+      if (w1 > -1 && w1 < 0.7) {
         w1 = 0.0;
       }
+      // Fix to 1 decimal place
+      w1 = customRound(w1);
     }
 }
 
