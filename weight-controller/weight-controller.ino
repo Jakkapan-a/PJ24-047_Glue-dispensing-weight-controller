@@ -1,5 +1,5 @@
 /*
-Last update: 2025-03-01
+Last update: 2025-10-27
 Author: Jakkapan A.
 Github: https://github.com/Jakkapan-a/PJ24-047_Glue-dispensing-weight-controller
 Hardware: Arduino Mega 2560
@@ -143,8 +143,8 @@ T ReadFromEEPROM(int address) {
 }
 int menuIndex = 0;
 int subMenuIndex = 0;
-int values[5] = { 0, 0, 0, 0, 0 };      // min1, max1, min2, max2, cal weight
-int valuesTemp[5] = { 0, 0, 0, 0, 0 };  // min1, max1, min2, max2, cal weight
+float values[5] = { 0.0, 0.0, 0.0, 0.0, 0.0 };      // 0=min1, 1=max1, 2=min2, 3=max2, 4=cal weight
+float valuesTemp[5] = { 0.0, 0.0, 0.0, 0.0, 0.0 };  // min1, max1, min2, max2, cal weight
 // ---------- SETUP ------------
 void setup() {
   Serial.begin(9600);
@@ -158,12 +158,12 @@ void setup() {
     scale.set_scale(406.472167);
   }
   scale.tare();
-  lcd.begin();
+  lcd.init();
   lcd.backlight();
   lcd.setCursor(0, 0);
   // -- Read EEPROM to values
   for (int i = 0; i < 5; i++) {
-    values[i] = ReadFromEEPROM<int>(i * sizeof(int));
+    values[i] = ReadFromEEPROM<float>(i * sizeof(float));
   }
   // ----------------
   delay(100);
@@ -194,7 +194,7 @@ void setup() {
   // -- BUTTONS --
   btnUp.setOnHold(btnUpHoldCallback, 1000);
   btnDown.setOnHold(btnDownHoldCallback, 1000);
-  inputPin1.isInvert = true;
+  inputPin1.isInvert = false;
   inputPin2.isInvert = true;
   // set debounce delay to 1000 milliseconds (1 second)
   inputPin1.setDebounceDelay(1000);
@@ -284,14 +284,14 @@ void updateMenu() {
         _menu = "Set " + _menu + " :";
         updateLCD(_menu.c_str(), String(valuesTemp[subMenuIndex]).c_str());
         if (btnUpPressed || btnUpHold) {
-          valuesTemp[subMenuIndex]++;
+          valuesTemp[subMenuIndex] += 0.1;
           btnUpPressed = false;
           if (btnUpHold) {
             delay(1);
           }
         }
         if (btnDownPressed || btnDownHold) {
-          valuesTemp[subMenuIndex]--;
+          valuesTemp[subMenuIndex] -= 0.1;
           btnDownPressed = false;
           if (btnDownHold) {
             delay(1);
@@ -299,7 +299,7 @@ void updateMenu() {
         }
         if (btnOkPressed) {
           // save to eeprom
-          SaveToEEPROM(subMenuIndex * sizeof(int), valuesTemp[subMenuIndex]);
+          SaveToEEPROM(subMenuIndex * sizeof(float), valuesTemp[subMenuIndex]);
           btnOkPressed = false;
           updateLCD("Saveing", ".");
           String _dot = ".";
@@ -343,7 +343,7 @@ void calibrate() {
     if (btnOkPressed) {
       scale.tare(20);
       btnOkPressed = false;
-      uint32_t wegiht = 0;
+      float wegiht = 0;
       int32_t offset = scale.get_offset();
       updateLCD("Zero offset", String(offset).c_str());
       delay(900);
@@ -389,7 +389,7 @@ void calibrate() {
               updateLCD("Calibrate", "Done");
               delay(1000);
               float scale_factor = scale.get_scale();
-              SaveToEEPROM(50, scale_factor);
+              SaveToEEPROM(70, scale_factor);
               btnOkPressed = false;
               return;
             }
@@ -432,12 +432,12 @@ float customRound(float value) {
   int intPart = (int)value;
   float decimalPart = value - intPart;
 
-  if (decimalPart <= 0.2) {
-    return intPart * 1.0;
-  } else if (decimalPart <= 0.8) {
-    return intPart + 0.5;
+  if (decimalPart <= 0.4) {
+    return intPart * decimalPart;
+  } else if (decimalPart <= 0.6) {
+    return intPart + decimalPart;
   } else {
-    return intPart + 1.0;
+    return intPart + decimalPart;
   }
 }
 
@@ -448,7 +448,7 @@ void updateWeightI(){
   bufferIndex = (bufferIndex + 1) % NUM_SAMPLES;  
   float filteredWeight = getFilteredWeight();
 
-    if (abs(filteredWeight - w1) > 0.3) 
+    if (abs(filteredWeight - w1) > 0.1) 
     {
       w1 = round(filteredWeight * 10) / 10.0;  // Fix to 1 decimal place
       if (w1 > -1 && w1 < 0.7) {
@@ -532,7 +532,7 @@ void updateWeight() {
         {
           line2 = "W:" + _w + " >" + String(values[0]) + " ---";
         }
-        
+
       } else {
         if (testStamp) {
           line1 = "Validate";
@@ -548,7 +548,7 @@ void updateWeight() {
             if (w1 >= values[2] && w1 <= values[3]) {
               buzzer.toggleFor(2);
               line1 += " OK";
-               setLedColor(GREEN);
+              setLedColor(GREEN);
             } else {
               setLedColor(RED);
               line1 += " NG";
