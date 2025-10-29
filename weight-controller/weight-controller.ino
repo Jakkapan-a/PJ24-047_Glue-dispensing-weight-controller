@@ -1,5 +1,5 @@
 /*
-Last update: 2025-10-27
+Last update: 2025-10-29
 Author: Jakkapan A.
 Github: https://github.com/Jakkapan-a/PJ24-047_Glue-dispensing-weight-controller
 Hardware: Arduino Mega 2560
@@ -164,6 +164,10 @@ void setup() {
   // -- Read EEPROM to values
   for (int i = 0; i < 5; i++) {
     values[i] = ReadFromEEPROM<float>(i * sizeof(float));
+    // Check if value is NaN and set to default 0
+    if (isnan(values[i])) {
+      values[i] = 0.0;
+    }
   }
   // ----------------
   delay(100);
