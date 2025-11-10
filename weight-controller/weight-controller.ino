@@ -220,8 +220,11 @@ bool input1SensorState = false;
 bool input2McRun = false;
 bool input2McRunState = false;
 bool resultNG = false;
-int countDownStart = 0;
 const int _countDownStart = 3;
+int countDownStart = 0;
+
+const int _countDownStop = 5; // 5 seconds countdown
+int countDownStop = 0;
 void loop() {
   btnEsc.update();
   inputPin1.update();
@@ -486,6 +489,17 @@ void updateDispalyCountDown(){
       delay(100);
     }
 
+    // Count down stop for after run
+    if(countDownStop > 0)
+    {
+      countDownStop--;
+     if(countDownStop == 0)
+     {
+      countDownStop = 0;
+      input2McRunState = false;
+     }
+    }
+
   } else if (currentMillis < lastReadTime) {
     lastReadTime = currentMillis;  // Overflow
   }
@@ -658,12 +672,13 @@ void inputPin1OnEventChanged(bool state) {
 
 // M/C RUN
 void inputPin2OnEventChanged(bool state) {
-  input2McRunState = state;
+  // input2McRunState = state;
   if (state) {
     Serial.println("INPUT_PIN2");
     input2McRun = true;
+    input2McRunState = true;
   } else {
-    
+    countDownStop = _countDownStop; // 5 seconds countdown
   }
 }
 
