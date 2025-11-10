@@ -677,6 +677,7 @@ void inputPin2OnEventChanged(bool state) {
     Serial.println("INPUT_PIN2");
     input2McRun = true;
     input2McRunState = true;
+    countDownStop = 0;
   } else {
     countDownStop = _countDownStop; // 5 seconds countdown
   }
